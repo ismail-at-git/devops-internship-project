@@ -27,9 +27,6 @@ Thumbs.db
 .idea/
 *.swp
 
-# Docker
-.dockerignore
-
 # Test coverage
 coverage/
 */coverage/

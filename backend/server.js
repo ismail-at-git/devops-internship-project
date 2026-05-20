@@ -80,24 +80,24 @@ app.use((err, req, res, next) => {
 
 });
 
-// MongoDB connection
+// MongoDB connection (retries help Docker/Atlas cold start)
 const connectDB = async () => {
+  const maxRetries = 5;
+  const delayMs = 5000;
 
-  try {
-
-    await mongoose.connect(process.env.MONGO_URI);
-
-    console.log('✅ MongoDB connected successfully');
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
-
-  } catch (err) {
-
-    console.error('❌ MongoDB connection failed:', err.message);
-
-    process.exit(1);
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await mongoose.connect(process.env.MONGO_URI);
+      console.log('✅ MongoDB connected successfully');
+      app.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+      });
+      return;
+    } catch (err) {
+      console.error(`❌ MongoDB attempt ${attempt}/${maxRetries} failed:`, err.message);
+      if (attempt === maxRetries) process.exit(1);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
   }
 };
 

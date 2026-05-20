@@ -1,91 +1,163 @@
 # DevOps Internship — MERN Task Manager
 
-JWT-authenticated task management: React 18 (CRA), Express API, MongoDB Atlas.
+JWT-authenticated task management: React 18, Express, MongoDB Atlas.
+
+**Repo:** https://github.com/ismail-at-git/devops-internship-project
 
 ## Tech stack
 
-- React, React Router, Axios  
-- Node.js, Express, Mongoose, JWT  
-- MongoDB Atlas (local dev and Docker use the same `MONGO_URI` pattern)
+React · Express · Mongoose · JWT · MongoDB Atlas · Docker · Nginx · AWS EC2 (Phase 3)
 
-## Repository layout
+## Layout
 
 ```
-backend/             Express API
-frontend/            React SPA (Nginx in Docker)
-docker-compose.yml   Backend + frontend (Atlas; no bundled MongoDB)
+backend/          API + Dockerfile
+frontend/         React + Nginx Dockerfile
+docker-compose.yml
+deploy/ec2-setup.sh
+scripts/test-docker-api.ps1
 ```
 
-Legacy `Jenkinsfile` / `.github/workflows` are optional reference only.
-
-## Prerequisites
-
-- Node.js 18+  
-- Docker Desktop (Linux engine) running  
-- MongoDB Atlas cluster + `backend/.env`  
-- Git, GitHub CLI (`gh`) if you push from this machine
-
-## Environment variables
-
-**Backend** — `backend/.env` (from `backend/.env.example`):
-
-| Variable | Description |
-|----------|-------------|
-| `MONGO_URI` | Atlas connection string |
-| `JWT_SECRET` | JWT signing secret |
-| `JWT_EXPIRE` | Optional (default `7d`) |
-| `PORT` | Local dev default `5001`; Docker sets `5000` via Compose |
-| `CLIENT_URL` | Browser origin (e.g. `http://localhost:3000` locally, `http://localhost:8080` with Compose below) |
-
-**Frontend (local only)** — `frontend/.env`: `REACT_APP_API_URL=http://localhost:5001`  
-**Frontend (Docker)** — built with empty `REACT_APP_API_URL` so the browser calls `/api/...` on the same host and Nginx proxies to the backend.
-
-## Local development (no Docker)
+## Local dev (no Docker)
 
 ```bash
 cd backend && npm install && npm run dev
 cd frontend && npm install && npm start
 ```
 
-- API: `http://localhost:5001`  
-- UI: `http://localhost:3000`
+API `http://localhost:5001` · UI `http://localhost:3000`
 
-## Docker (Atlas)
+## Environment
 
-1. Start **Docker Desktop**.  
-2. Ensure `backend/.env` exists with a valid **`MONGO_URI`** (Atlas must allow traffic from your machine’s public IP, or `0.0.0.0/0` for dev).  
-3. From the repository root:
+| File | Variables |
+|------|-----------|
+| `backend/.env` | `MONGO_URI`, `JWT_SECRET`, `PORT` (5001 local), `CLIENT_URL` |
+| `frontend/.env` | `REACT_APP_API_URL=http://localhost:5001` |
+
+Copy from `*.env.example`. Never commit `.env`.
+
+---
+
+## Docker
+
+### Prerequisites
+
+- Docker Desktop running (Linux engine)
+- `backend/.env` with valid Atlas `MONGO_URI`
+- **Atlas → Network Access:** add your public IP or `0.0.0.0/0` (dev only)
+
+### Commands
 
 ```bash
 docker compose build
 docker compose up -d
+docker compose ps
+docker compose logs backend -f
+docker compose down
 ```
 
-- **UI + API (via Nginx):** `http://localhost:8080`  
-- **API direct (optional):** `http://localhost:5000`  
-- **Health (via Nginx):** `http://localhost:8080/health`  
-- **Health (direct API):** `http://localhost:5000/health`
+| URL | Purpose |
+|-----|---------|
+| http://localhost:8080 | UI + `/api/*` via Nginx |
+| http://localhost:8080/health | Health (proxied) |
+| http://localhost:5000 | API direct |
 
-Stop: `docker compose down`
+Docker uses empty `REACT_APP_API_URL` so the browser calls same-origin `/api/...`.
 
-**Note:** `docker compose config` prints resolved environment values — do not share that output if it contains secrets.
+### Verification status
+
+| Check | Status |
+|-------|--------|
+| `docker compose build` | Verified |
+| Backend image / container start | Verified |
+| Frontend image build | Verified |
+| Atlas from containers | **Requires Atlas IP allowlist** (see troubleshooting) |
+| Full auth + CRUD in Docker | Run `scripts/test-docker-api.ps1` after Atlas allows your IP |
+
+### Troubleshooting
+
+1. **Backend unhealthy / MongoDB IP not whitelisted**  
+   Atlas → Network Access → Add IP → `0.0.0.0/0` (dev) or your current IP → wait 1–2 min → `docker compose restart backend`.
+
+2. **Frontend not starting**  
+   Waits for healthy backend. Fix Mongo first.
+
+3. **`docker compose config` prints secrets** — do not share output.
+
+4. **Slow builds** — `.dockerignore` excludes `node_modules`; rebuild after pull.
+
+### Quick API test (PowerShell)
+
+```powershell
+.\scripts\test-docker-api.ps1
+```
+
+---
+
+## Phase 3 — AWS EC2 (simple Docker Compose deploy)
+
+### Prerequisites
+
+- Ubuntu 22.04 EC2 (t2.micro+)
+- Security group: **22** (SSH), **8080** (app), optional **5000** (API debug)
+- PEM key for SSH
+- Atlas allows **EC2 public IP** (or `0.0.0.0/0` for dev)
+
+### Steps
+
+1. Launch EC2, connect:
+   ```bash
+   ssh -i your-key.pem ubuntu@<EC2_PUBLIC_IP>
+   ```
+
+2. Clone and configure:
+   ```bash
+   git clone https://github.com/ismail-at-git/devops-internship-project.git
+   cd devops-internship-project
+   cp backend/.env.example backend/.env
+   nano backend/.env   # set MONGO_URI, JWT_SECRET
+   ```
+
+3. Run setup script:
+   ```bash
+   chmod +x deploy/ec2-setup.sh
+   ./deploy/ec2-setup.sh
+   ```
+
+4. Open **http://&lt;EC2_PUBLIC_IP&gt;:8080** — register, login, tasks.
+
+5. In Atlas, add EC2 public IP to Network Access if not using `0.0.0.0/0`.
+
+### EC2 env notes
+
+- Compose sets `PORT=5000` and `CLIENT_URL=http://<EC2_IP>:8080` (override in compose or `.env` if needed).
+- No Kubernetes/Terraform/CI in this phase.
+
+### Phase 3 completion
+
+| Item | Status |
+|------|--------|
+| `deploy/ec2-setup.sh` | Ready |
+| Live EC2 deploy from this agent | **Not run** — needs your EC2 IP + SSH key on your machine |
+
+---
+
+## Progress
+
+| Phase | Status |
+|-------|--------|
+| Local MERN + GitHub | Done |
+| Phase 1 — env examples | Done |
+| Phase 2 — Docker | Build/up verified; runtime needs Atlas IP |
+| Phase 3 — EC2 scripts + docs | Ready for you to run on EC2 |
+
+---
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  Browser -->|HTTP :8080| Nginx[Nginx + static React]
-  Nginx -->|/api proxy| Express[Express API :5000]
-  Express --> Atlas[(MongoDB Atlas)]
+  Browser --> Nginx[Nginx :8080]
+  Nginx --> API[Express :5000]
+  API --> Atlas[(MongoDB Atlas)]
 ```
-
-## Progress tracker
-
-| Phase | Status | Notes |
-|-------|--------|--------|
-| Copy / local dev | Done | Use `backend/.env` + Atlas |
-| GitHub `devops-internship-project` | Done | |
-| Phase 1 — env examples & docs | Done | |
-| Phase 2 — Docker (Compose + Nginx + Atlas) | Done | Run `docker compose up` with Docker Desktop; verify register/login/tasks |
-
-**Phase 2+ (AWS/K8s/etc.):** out of scope unless added later.
