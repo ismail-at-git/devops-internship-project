@@ -17,6 +17,8 @@ COPY . .
 FROM node:18-alpine AS production
 WORKDIR /app
 
+RUN apk add --no-cache wget
+
 # Security: run as non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser  -S nodeuser -u 1001

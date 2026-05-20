@@ -1,95 +1,91 @@
 # DevOps Internship — MERN Task Manager
 
-JWT-authenticated task management app: React 18 (CRA), Express API, MongoDB (Atlas for local dev; optional Docker Mongo in compose).
+JWT-authenticated task management: React 18 (CRA), Express API, MongoDB Atlas.
 
 ## Tech stack
 
 - React, React Router, Axios  
-- Node.js, Express, Mongoose, JWT (`jsonwebtoken`)  
-- MongoDB (Atlas or container)
+- Node.js, Express, Mongoose, JWT  
+- MongoDB Atlas (local dev and Docker use the same `MONGO_URI` pattern)
 
 ## Repository layout
 
 ```
-backend/          Express API (server.js, routes, models, middleware)
-frontend/         Create React App (src/pages, components, context)
-docker-compose.yml   Optional full stack (Mongo + backend + frontend)
+backend/             Express API
+frontend/            React SPA (Nginx in Docker)
+docker-compose.yml   Backend + frontend (Atlas; no bundled MongoDB)
 ```
 
-Legacy CI/CD files (`Jenkinsfile`, `.github/workflows`) remain for reference; this internship track focuses on GitHub + README phases below.
+Legacy `Jenkinsfile` / `.github/workflows` are optional reference only.
 
 ## Prerequisites
 
 - Node.js 18+  
-- MongoDB Atlas cluster (or use Docker Compose Mongo service)  
-- Git, [GitHub CLI](https://cli.github.com/) (`gh`) for pushes from this machine
+- Docker Desktop (Linux engine) running  
+- MongoDB Atlas cluster + `backend/.env`  
+- Git, GitHub CLI (`gh`) if you push from this machine
 
 ## Environment variables
 
-**Backend** — copy `backend/.env.example` to `backend/.env` and set real values:
+**Backend** — `backend/.env` (from `backend/.env.example`):
 
-| Variable     | Description |
-|-------------|-------------|
-| `MONGO_URI` | MongoDB connection string |
-| `JWT_SECRET` | Secret for signing JWTs |
-| `PORT`      | API port (default `5001`; must match frontend) |
-| `JWT_EXPIRE`| Optional token lifetime (default `7d`) |
-| `CLIENT_URL`| Frontend origin (e.g. `http://localhost:3000`) |
+| Variable | Description |
+|----------|-------------|
+| `MONGO_URI` | Atlas connection string |
+| `JWT_SECRET` | JWT signing secret |
+| `JWT_EXPIRE` | Optional (default `7d`) |
+| `PORT` | Local dev default `5001`; Docker sets `5000` via Compose |
+| `CLIENT_URL` | Browser origin (e.g. `http://localhost:3000` locally, `http://localhost:8080` with Compose below) |
 
-**Frontend** — copy `frontend/.env.example` to `frontend/.env`:
+**Frontend (local only)** — `frontend/.env`: `REACT_APP_API_URL=http://localhost:5001`  
+**Frontend (Docker)** — built with empty `REACT_APP_API_URL` so the browser calls `/api/...` on the same host and Nginx proxies to the backend.
 
-| Variable            | Description |
-|--------------------|-------------|
-| `REACT_APP_API_URL`| Base URL of API (e.g. `http://localhost:5001`) |
-
-## Local development
-
-Terminal 1 — backend:
+## Local development (no Docker)
 
 ```bash
-cd backend
-npm install
-npm run dev
+cd backend && npm install && npm run dev
+cd frontend && npm install && npm start
 ```
 
-Terminal 2 — frontend:
+- API: `http://localhost:5001`  
+- UI: `http://localhost:3000`
+
+## Docker (Atlas)
+
+1. Start **Docker Desktop**.  
+2. Ensure `backend/.env` exists with a valid **`MONGO_URI`** (Atlas must allow traffic from your machine’s public IP, or `0.0.0.0/0` for dev).  
+3. From the repository root:
 
 ```bash
-cd frontend
-npm install
-npm start
+docker compose build
+docker compose up -d
 ```
 
-- API: `http://localhost:5001` (or your `PORT`)  
-- UI: `http://localhost:3000`  
-- Health: `GET http://localhost:5001/health`
+- **UI + API (via Nginx):** `http://localhost:8080`  
+- **API direct (optional):** `http://localhost:5000`  
+- **Health (via Nginx):** `http://localhost:8080/health`  
+- **Health (direct API):** `http://localhost:5000/health`
 
-Confirm register, login, and task CRUD in the browser after Atlas **Network Access** allows your IP.
+Stop: `docker compose down`
 
-## Architecture (high level)
+**Note:** `docker compose config` prints resolved environment values — do not share that output if it contains secrets.
+
+## Architecture
 
 ```mermaid
 flowchart LR
-  subgraph client [Browser]
-    CRA[React SPA]
-  end
-  subgraph api [Backend]
-    Express[Express + JWT middleware]
-    Mongo[(MongoDB)]
-  end
-  CRA -->|REST JSON| Express
-  Express --> Mongo
+  Browser -->|HTTP :8080| Nginx[Nginx + static React]
+  Nginx -->|/api proxy| Express[Express API :5000]
+  Express --> Atlas[(MongoDB Atlas)]
 ```
 
 ## Progress tracker
 
 | Phase | Status | Notes |
 |-------|--------|--------|
-| Copy verified / deps installed | Done | Run full auth + CRUD on your machine (Atlas + `.env`). |
-| GitHub repo `devops-internship-project` | Done | Initialized from inner folder; secrets not committed. |
-| Phase 1 — env standardization & docs | Done | `.env.example` files, `.gitignore`, this README. |
-| Phase 2 — Docker polish & docs | Pending | Requires your go-ahead; Dockerfiles + compose already present. |
+| Copy / local dev | Done | Use `backend/.env` + Atlas |
+| GitHub `devops-internship-project` | Done | |
+| Phase 1 — env examples & docs | Done | |
+| Phase 2 — Docker (Compose + Nginx + Atlas) | Done | Run `docker compose up` with Docker Desktop; verify register/login/tasks |
 
----
-
-**Phase 2 not started** — say when to proceed after you confirm free-plan capacity on your side.
+**Phase 2+ (AWS/K8s/etc.):** out of scope unless added later.
