@@ -1,24 +1,17 @@
 # DevOps Internship — MERN Task Manager
 
-JWT-authenticated task management: React 18, Express, MongoDB Atlas.
-
 **Repo:** https://github.com/ismail-at-git/devops-internship-project
 
-## Tech stack
-
-React · Express · Mongoose · JWT · MongoDB Atlas · Docker · Nginx · AWS EC2 (Phase 3)
+JWT task app: React · Express · MongoDB Atlas · Docker · GitHub Actions CI.
 
 ## Layout
 
 ```
-backend/          API + Dockerfile
-frontend/         React + Nginx Dockerfile
-docker-compose.yml
-deploy/ec2-setup.sh
-scripts/test-docker-api.ps1
+backend/   frontend/   docker-compose.yml
+deploy/    scripts/    .github/workflows/ci.yml
 ```
 
-## Local dev (no Docker)
+## Local dev
 
 ```bash
 cd backend && npm install && npm run dev
@@ -29,26 +22,21 @@ API `http://localhost:5001` · UI `http://localhost:3000`
 
 ## Environment
 
-| File | Variables |
-|------|-----------|
-| `backend/.env` | `MONGO_URI`, `JWT_SECRET`, `PORT` (5001 local), `CLIENT_URL` |
+| File | Key vars |
+|------|----------|
+| `backend/.env` | `MONGO_URI`, `JWT_SECRET`, `PORT` |
 | `frontend/.env` | `REACT_APP_API_URL=http://localhost:5001` |
 
-Copy from `*.env.example`. Never commit `.env`.
+Never commit `.env`.
 
 ---
 
 ## Docker
 
-### Prerequisites
-
-- Docker Desktop running (Linux engine)
-- `backend/.env` with valid Atlas `MONGO_URI`
-- **Atlas → Network Access:** add your public IP or `0.0.0.0/0` (dev only)
-
-### Commands
+**Prerequisites:** Docker Desktop running · `backend/.env` · Atlas Network Access (your IP or `0.0.0.0/0` for dev)
 
 ```bash
+docker compose down
 docker compose build
 docker compose up -d
 docker compose ps
@@ -56,89 +44,76 @@ docker compose logs backend -f
 docker compose down
 ```
 
-| URL | Purpose |
-|-----|---------|
-| http://localhost:8080 | UI + `/api/*` via Nginx |
-| http://localhost:8080/health | Health (proxied) |
+| URL | Use |
+|-----|-----|
+| http://localhost:8080 | UI + `/api/*` (Nginx) |
+| http://localhost:8080/health | Health via proxy |
 | http://localhost:5000 | API direct |
 
-Docker uses empty `REACT_APP_API_URL` so the browser calls same-origin `/api/...`.
+Docker build uses empty `REACT_APP_API_URL` (same-origin `/api`).
 
 ### Verification status
 
 | Check | Status |
 |-------|--------|
 | `docker compose build` | Verified |
-| Backend image / container start | Verified |
-| Frontend image build | Verified |
-| Atlas from containers | **Requires Atlas IP allowlist** (see troubleshooting) |
-| Full auth + CRUD in Docker | Run `scripts/test-docker-api.ps1` after Atlas allows your IP |
-
-### Troubleshooting
-
-1. **Backend unhealthy / MongoDB IP not whitelisted**  
-   Atlas → Network Access → Add IP → `0.0.0.0/0` (dev) or your current IP → wait 1–2 min → `docker compose restart backend`.
-
-2. **Frontend not starting**  
-   Waits for healthy backend. Fix Mongo first.
-
-3. **`docker compose config` prints secrets** — do not share output.
-
-4. **Slow builds** — `.dockerignore` excludes `node_modules`; rebuild after pull.
-
-### Quick API test (PowerShell)
+| Backend healthy + Atlas | Verified |
+| Frontend healthy + Nginx | Verified |
+| Register / login / JWT / task CRUD | Verified (`scripts/test-docker-api.ps1`) |
 
 ```powershell
 .\scripts\test-docker-api.ps1
 ```
 
+### Troubleshooting
+
+- **Backend unhealthy** → Atlas Network Access → add IP → `docker compose restart backend`
+- **Frontend waits on backend** → fix Mongo first
+- **Slow build** → `.dockerignore` excludes `node_modules`
+
 ---
 
-## Phase 3 — AWS EC2 (simple Docker Compose deploy)
+## CI/CD (Phase 4)
 
-### Prerequisites
+**GitHub Actions** — `.github/workflows/ci.yml`
 
-- Ubuntu 22.04 EC2 (t2.micro+)
-- Security group: **22** (SSH), **8080** (app), optional **5000** (API debug)
-- PEM key for SSH
-- Atlas allows **EC2 public IP** (or `0.0.0.0/0` for dev)
+Runs on **push** and **pull_request** to `master` / `main`:
 
-### Steps
+1. Verify project structure  
+2. `npm ci` + syntax check (backend)  
+3. `npm run build` (frontend)  
+4. `docker compose build`
 
-1. Launch EC2, connect:
-   ```bash
-   ssh -i your-key.pem ubuntu@<EC2_PUBLIC_IP>
-   ```
+Local same checks:
 
-2. Clone and configure:
-   ```bash
-   git clone https://github.com/ismail-at-git/devops-internship-project.git
-   cd devops-internship-project
-   cp backend/.env.example backend/.env
-   nano backend/.env   # set MONGO_URI, JWT_SECRET
-   ```
+```bash
+chmod +x scripts/ci-verify.sh && ./scripts/ci-verify.sh
+```
 
-3. Run setup script:
-   ```bash
-   chmod +x deploy/ec2-setup.sh
-   ./deploy/ec2-setup.sh
-   ```
+View runs: GitHub → **Actions** tab.
 
-4. Open **http://&lt;EC2_PUBLIC_IP&gt;:8080** — register, login, tasks.
+```mermaid
+flowchart LR
+  Push[git push] --> GHA[GitHub Actions]
+  GHA --> Node[Node build/test]
+  GHA --> Docker[Docker build]
+```
 
-5. In Atlas, add EC2 public IP to Network Access if not using `0.0.0.0/0`.
+---
 
-### EC2 env notes
+## EC2 deploy (Phase 3)
 
-- Compose sets `PORT=5000` and `CLIENT_URL=http://<EC2_IP>:8080` (override in compose or `.env` if needed).
-- No Kubernetes/Terraform/CI in this phase.
+Ubuntu EC2 · SG ports **22**, **8080** · Atlas allows EC2 IP
 
-### Phase 3 completion
+```bash
+ssh -i key.pem ubuntu@<EC2_IP>
+git clone https://github.com/ismail-at-git/devops-internship-project.git
+cd devops-internship-project
+cp backend/.env.example backend/.env   # edit secrets
+chmod +x deploy/ec2-setup.sh && ./deploy/ec2-setup.sh
+```
 
-| Item | Status |
-|------|--------|
-| `deploy/ec2-setup.sh` | Ready |
-| Live EC2 deploy from this agent | **Not run** — needs your EC2 IP + SSH key on your machine |
+App: `http://<EC2_IP>:8080`
 
 ---
 
@@ -146,18 +121,25 @@ Docker uses empty `REACT_APP_API_URL` so the browser calls same-origin `/api/...
 
 | Phase | Status |
 |-------|--------|
-| Local MERN + GitHub | Done |
-| Phase 1 — env examples | Done |
-| Phase 2 — Docker | Build/up verified; runtime needs Atlas IP |
-| Phase 3 — EC2 scripts + docs | Ready for you to run on EC2 |
+| Phase 1 — env / structure | Done |
+| Phase 2 — Docker | Done (verified) |
+| Phase 3 — EC2 scripts | Ready (manual deploy) |
+| Phase 4 — GitHub Actions CI | Done |
 
 ---
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-  Browser --> Nginx[Nginx :8080]
-  Nginx --> API[Express :5000]
-  API --> Atlas[(MongoDB Atlas)]
+flowchart TB
+  subgraph dev [Local / Docker]
+    UI[React + Nginx :8080]
+    API[Express :5000]
+  end
+  subgraph cloud [Cloud]
+    Atlas[(MongoDB Atlas)]
+    GHA[GitHub Actions]
+  end
+  UI --> API --> Atlas
+  GHA -.->|build verify| dev
 ```
