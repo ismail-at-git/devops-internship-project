@@ -31,5 +31,6 @@ docker compose build
 docker compose up -d
 docker compose ps
 
-echo "App: http://$(curl -s ifconfig.me):8080"
-echo "Allow this EC2 public IP in MongoDB Atlas Network Access."
+PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com)
+echo "App: http://${PUBLIC_IP}:8080"
+echo "Add ${PUBLIC_IP} to MongoDB Atlas Network Access if not using 0.0.0.0/0."
